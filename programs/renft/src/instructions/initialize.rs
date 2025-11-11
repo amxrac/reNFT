@@ -40,3 +40,9 @@ impl<'info> Initialize<'info> {
         Ok(())
     }
 }
+
+pub fn handler(ctx: Context<Initialize>, name: String, fee: u16) -> Result<()> {
+    ctx.accounts.initialize(name, fee, &ctx.bumps)?;
+
+    Ok(())
+}

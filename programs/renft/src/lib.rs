@@ -16,7 +16,11 @@ pub mod renft {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, name: String, fee: u16) -> Result<()> {
-        ctx.accounts.initialize(name, fee, &ctx.bumps)?;
+        instructions::initialize::handler(ctx, name, fee)?;
         Ok(())
+    }
+
+    pub fn list(ctx: Context<List>, price: u64, rental_duration: i64) -> Result<()> {
+        instructions::list::handler(ctx, price, rental_duration)
     }
 }
