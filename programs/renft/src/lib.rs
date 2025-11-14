@@ -20,6 +20,10 @@ pub mod renft {
         Ok(())
     }
 
+    pub fn whitelist_dao(ctx: Context<WhitelistDao>) -> Result<()> {
+        instructions::whitelist_dao::handler(ctx)
+    }
+
     pub fn list(ctx: Context<List>, price: u64, rental_duration: i64) -> Result<()> {
         instructions::list::handler(ctx, price, rental_duration)
     }
