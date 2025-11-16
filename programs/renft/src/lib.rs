@@ -9,7 +9,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("HFCx3WdsfV1L8J2XHEGCMiK2kNArvrPDBLscB5vb1tij");
+declare_id!("HY4vmyrm8GooLHLdfo5T8fPuNM7yNDbWNW2emToBCW3F");
 
 #[program]
 pub mod renft {
