@@ -17,8 +17,8 @@ reNFT is a marketplace where DAO's can list NFTs for rental purposes. They can b
 ## Installation
 ```bash
   # Clone repository
-  git clone https://github.com/asa/reNFT.git
-  cd reNFT
+git clone https://github.com/amxrac/reNFT.git
+cd reNFT
 
 # Install dependencies
 npm install
