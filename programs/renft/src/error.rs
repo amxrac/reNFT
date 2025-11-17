@@ -8,4 +8,6 @@ pub enum ReNFTError {
     DaoAlreadyWhitelisted,
     #[msg("The collection is invalid.")]
     InvalidCollection,
+    #[msg("Unauthorized Dao")]
+    UnauthorizedSeller,
 }

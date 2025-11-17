@@ -1,4 +1,5 @@
-use crate::state::{Listing, Marketplace};
+use crate::error::ReNFTError;
+use crate::state::{Listing, Marketplace, WhitelistedDao};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -16,6 +17,13 @@ pub struct List<'info> {
         bump = marketplace.bump,
     )]
     pub marketplace: Account<'info, Marketplace>,
+
+    #[account(
+    seeds = [b"whitelist", marketplace.key().as_ref(), collection_mint.key().as_ref()],
+    bump = whitelisted_dao.bump,
+    constraint = whitelisted_dao.dao_authority == seller.key() @ ReNFTError::UnauthorizedSeller,
+    )]
+    pub whitelisted_dao: Account<'info, WhitelistedDao>,
 
     #[account(
         init,
@@ -126,5 +134,3 @@ pub fn handler(ctx: Context<List>, price: u64, rental_duration: i64) -> Result<(
 
     Ok(())
 }
-
-// add kini for admin to whiltelist dao/seller in initialize

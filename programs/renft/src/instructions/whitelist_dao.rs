@@ -1,10 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 
-use crate::{
-    program::Renft,
-    state::{Marketplace, WhitelistedDao},
-};
+use crate::state::{Marketplace, WhitelistedDao};
 
 #[derive(Accounts)]
 pub struct WhitelistDao<'info> {

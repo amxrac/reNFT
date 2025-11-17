@@ -10,7 +10,7 @@ pub struct Initialize<'info> {
     pub admin: Signer<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = admin,
         seeds = [b"marketplace", name.as_bytes()],
         bump,
