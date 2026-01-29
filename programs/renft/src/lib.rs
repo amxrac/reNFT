@@ -33,4 +33,8 @@ pub mod renft {
     pub fn delist(ctx: Context<Delist>) -> Result<()> {
         instructions::delist::handler(ctx)
     }
+
+    pub fn purchase(ctx: Context<Purchase>) -> Result<()> {
+        instructions::purchase::handler(ctx)
+    }
 }
