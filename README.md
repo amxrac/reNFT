@@ -1,8 +1,8 @@
-# reNFT - A decentralized platform for renting NFTs
+# reNFT - A decentralized marketplace platform for NFTs
 
 ---
 
-reNFT is a marketplace where DAO's can list NFTs for rental purposes. They can be used for event passes, membership benefits, and to generate publicity for new projects.
+reNFT is a marketplace where DAO's can list NFTs for purchase purposes. They can be used for event passes, membership benefits, and to generate publicity for new projects.
 
 ## Quick Start
 ---
@@ -17,8 +17,8 @@ reNFT is a marketplace where DAO's can list NFTs for rental purposes. They can b
 ## Installation
 ```bash
   # Clone repository
-  git clone https://github.com/asa/reNFT.git
-  cd reNFT
+git clone https://github.com/amxrac/reNFT.git
+cd reNFT
 
 # Install dependencies
 npm install
@@ -59,17 +59,9 @@ anchor test --skip-deploy
 
 ## Current Features
 - Initialize a global marketplace admin.
-- Whitelist DAOs to list NFTs with configurable rental prices and durations.
+- Whitelist DAOs to list NFTs with configurable purchase prices.
 - List NFTs and transfer them to a vault.
-### Features to be Added
-- Rent NFTs by paying the specified rental fee
-- Store rental payments in escrow until the rental period expires
-- Grant delegate authority to renters for the rental duration
-- Enforce time-bound access and revoke delegate authority after expiry
-- Release escrowed funds to the DAO upon successful rental completion
-- Return NFTs to DAO vaults and enable delisting
-- Prevent premature delisting of actively rented NFTs
-- Close inactive vault and escrow accounts to reclaim lamports
+
 
 ##  Resources
 - [Solana Documentation](https://docs.solana.com/)
