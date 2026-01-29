@@ -16,26 +16,23 @@ import {
   getOrCreateAssociatedTokenAccount,
   mintTo,
 } from "@solana/spl-token";
-import {
-  createMetadataAccountV3,
-  CreateMetadataAccountV3InstructionAccounts,
-  CreateMetadataAccountV3InstructionArgs,
-  DataV2Args,
-  MPL_TOKEN_METADATA_PROGRAM_ID,
-  createMasterEditionV3,
-  CreateMasterEditionV3InstructionAccounts,
-  CreateMasterEditionV3InstructionArgs,
-  verifyCollection,
-  VerifyCollectionInstructionAccounts,
-  Collection,
-} from "@metaplex-foundation/mpl-token-metadata";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { web3JsEddsa } from "@metaplex-foundation/umi-signer-web3js";
-import { toWeb3JsInstruction } from "@metaplex-foundation/umi-web3js-adapters";
 import {
-  signerIdentity,
-  publicKey, // Helper to convert string/PublicKey to Umi's format
+  KeypairSigner,
+  createSignerFromKeypair,
+  generateSigner,
+  keypairIdentity,
+  percentAmount,
+  publicKey,
 } from "@metaplex-foundation/umi";
+import {
+  createNft,
+  findMasterEditionPda,
+  findMetadataPda,
+  mplTokenMetadata,
+  verifySizedCollectionItem,
+} from "@metaplex-foundation/mpl-token-metadata";
+import NodeWallet from "@coral-xyz/anchor/dist/cjs/nodewallet";
 
 describe("renft", () => {
   // Configure the client to use the local cluster.
@@ -43,63 +40,129 @@ describe("renft", () => {
   anchor.setProvider(provider);
   const program = anchor.workspace.renft as Program<Renft>;
   const connection = provider.connection;
+  const umi = createUmi(connection);
 
   const admin = provider.wallet;
+  const adminWallet = admin as NodeWallet;
+  const creatorWallet = umi.eddsa.createKeypairFromSecretKey(
+    new Uint8Array(adminWallet.payer.secretKey)
+  );
+  const creator = createSignerFromKeypair(umi, creatorWallet);
+  umi.use(keypairIdentity(creator));
+  umi.use(mplTokenMetadata());
+
   const daoAuthority = Keypair.generate();
+  const buyer = Keypair.generate();
 
   const marketplaceName = "marketplaceName1";
   const marketplaceFee = 100;
 
   let marketplacePda: PublicKey;
   let treasuryPda: PublicKey;
+  let rewardsMint: PublicKey;
   let whitelistedDaoPda: PublicKey;
-  let collectionMint: PublicKey;
   let listingPda: PublicKey;
   let vaultPda: PublicKey;
-  let nftMint: PublicKey;
+  let collectionMint: KeypairSigner;
+  let nftMint: KeypairSigner;
   let daoAta: PublicKey;
-  let metadataPda: PublicKey;
-  let masterEditionPda: PublicKey;
+  let buyerAta: PublicKey;
 
   before(async () => {
     const adminSig = await connection.requestAirdrop(
       admin.publicKey,
       2_000_000_000
     );
-    await connection.confirmTransaction(adminSig);
+    const latestBlockhash = await connection.getLatestBlockhash();
+    await connection.confirmTransaction({
+      signature: adminSig,
+      ...latestBlockhash,
+    });
 
     const daoSig = await connection.requestAirdrop(
       daoAuthority.publicKey,
       2_000_000_000
     );
-    await connection.confirmTransaction(daoSig);
+    await connection.confirmTransaction({
+      signature: daoSig,
+      ...latestBlockhash,
+    });
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const buyerSig = await connection.requestAirdrop(
+      buyer.publicKey,
+      2_000_000_000
+    );
+    await connection.confirmTransaction({
+      signature: buyerSig,
+      ...latestBlockhash,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    collectionMint = await createMint(
-      connection,
-      admin.payer,
-      admin.publicKey,
-      admin.publicKey,
-      0
+    collectionMint = generateSigner(umi);
+
+    await createNft(umi, {
+      mint: collectionMint,
+      name: "reNFT",
+      symbol: "RN",
+      uri: "http://images5.fanpop.com/image/photos/28000000/randomised-random-28065165-1024-819.jpg",
+      sellerFeeBasisPoints: percentAmount(5.5),
+      collectionDetails: { __kind: "V1", size: 10 },
+    }).sendAndConfirm(umi);
+    console.log(
+      `collection NFT created: ${collectionMint.publicKey.toString()}`
     );
 
-    nftMint = await createMint(
-      connection,
-      daoAuthority,
-      daoAuthority.publicKey,
-      null,
-      0
-    );
+    nftMint = generateSigner(umi);
+
+    await createNft(umi, {
+      mint: nftMint,
+      name: "reNFT",
+      symbol: "RN",
+      uri: "http://images5.fanpop.com/image/photos/28000000/randomised-random-28065165-1024-819.jpg",
+      sellerFeeBasisPoints: percentAmount(5.5),
+      collection: { verified: false, key: collectionMint.publicKey },
+      tokenOwner: publicKey(daoAuthority.publicKey),
+    }).sendAndConfirm(umi);
+    console.log(`NFT created: ${collectionMint.publicKey.toString()}`);
+
+    const collectionMetadata = findMetadataPda(umi, {
+      mint: collectionMint.publicKey,
+    });
+    const collectionMasterEdition = findMasterEditionPda(umi, {
+      mint: collectionMint.publicKey,
+    });
+    const nftMetadata = findMetadataPda(umi, { mint: nftMint.publicKey });
+    await verifySizedCollectionItem(umi, {
+      metadata: nftMetadata,
+      collectionAuthority: creator,
+      collectionMint: collectionMint.publicKey,
+      collection: collectionMetadata,
+      collectionMasterEditionAccount: collectionMasterEdition,
+    }).sendAndConfirm(umi);
+    console.log("collection NFT verified");
 
     daoAta = await getOrCreateAssociatedTokenAccount(
       connection,
       daoAuthority,
-      nftMint,
+      new PublicKey(nftMint.publicKey),
       daoAuthority.publicKey
     ).then((addr) => addr.address);
 
-    await mintTo(connection, daoAuthority, nftMint, daoAta, daoAuthority, 1);
+    buyerAta = await getOrCreateAssociatedTokenAccount(
+      connection,
+      buyer,
+      new PublicKey(nftMint.publicKey),
+      buyer.publicKey
+    ).then((addr) => addr.address);
+
+    await mintTo(
+      connection,
+      daoAuthority,
+      new PublicKey(nftMint.publicKey),
+      daoAta,
+      daoAuthority,
+      1
+    );
 
     marketplacePda = PublicKey.findProgramAddressSync(
       [Buffer.from("marketplace"), Buffer.from(marketplaceName)],
@@ -111,64 +174,29 @@ describe("renft", () => {
       program.programId
     )[0];
 
+    rewardsMint = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("rewards"), Buffer.from(marketplaceName)],
+      program.programId
+    )[0];
+
     whitelistedDaoPda = PublicKey.findProgramAddressSync(
       [
         Buffer.from("whitelist"),
         marketplacePda.toBuffer(),
-        collectionMint.toBuffer(),
+        new PublicKey(collectionMint.publicKey).toBuffer(),
       ],
       program.programId
     )[0];
 
     listingPda = PublicKey.findProgramAddressSync(
-      [marketplacePda.toBuffer(), nftMint.toBuffer()],
+      [marketplacePda.toBuffer(), new PublicKey(nftMint.publicKey).toBuffer()],
       program.programId
     )[0];
 
-    vaultPda = await getAssociatedTokenAddress(
-      nftMint,
-      listingPda,
-      true,
-      TOKEN_PROGRAM_ID
-    )[0];
-
-    metadataPda = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("metadata"),
-        new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID).toBuffer(),
-        nftMint.toBuffer(),
-      ],
-      new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID)
-    )[0];
-
-    masterEditionPda = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("metadata"),
-        new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID).toBuffer(),
-        nftMint.toBuffer(),
-        Buffer.from("edition"),
-      ],
-      new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID)
-    )[0];
-
-    const collectionMetadataPda = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("metadata"),
-        new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID).toBuffer(),
-        collectionMint.toBuffer(),
-      ],
-      new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID)
-    )[0];
-
-    const collectionMasterEditionPda = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("metadata"),
-        new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID).toBuffer(),
-        collectionMint.toBuffer(),
-        Buffer.from("edition"),
-      ],
-      new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID)
-    )[0];
+    vaultPda = await anchor.utils.token.associatedAddress({
+      mint: new PublicKey(nftMint.publicKey),
+      owner: listingPda,
+    });
   });
 
   describe("Initialize Marketplace", () => {
@@ -180,6 +208,7 @@ describe("renft", () => {
             admin: admin.publicKey,
             marketplace: marketplacePda,
             treasury: treasuryPda,
+            rewardMint: rewardsMint,
             systemProgram: SystemProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           })
@@ -263,55 +292,58 @@ describe("renft", () => {
   });
 
   describe("Create Listing", () => {
-    // it("creates an NFT listing", async () => {
-    //   const price = new anchor.BN(10_000_000);
-    //   const rentalDuration = new anchor.BN(86400);
-    //   try {
-    //     const sig = await program.methods
-    //       .list(price, rentalDuration)
-    //       .accounts({
-    //         seller: daoAuthority.publicKey,
-    //         marketplace: marketplacePda,
-    //         whitelistedDao: whitelistedDaoPda,
-    //         listing: listingPda,
-    //         mintAddress: nftMint,
-    //         sellerAta: daoAta,
-    //         vault: vaultPda,
-    //         collectionMint: collectionMint,
-    //         metadata: metadataPda,
-    //         masterEdition: masterEditionPda,
-    //         metadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
-    //         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    //         systemProgram: SystemProgram.programId,
-    //         tokenProgram: TOKEN_PROGRAM_ID,
-    //       })
-    //       .signers([daoAuthority])
-    //       .rpc();
-    //     const listingAccount = await program.account.listing.fetch(listingPda);
-    //     expect(listingAccount.seller.toString()).to.equal(
-    //       daoAuthority.toString()
-    //     );
-    //     expect(listingAccount.price.toString()).to.equal(price.toString());
-    //     expect(listingAccount.rentalDuration.toString()).to.equal(
-    //       rentalDuration.toString()
-    //     );
-    //     expect(listingAccount.currentRenter).to.be.null;
-    //     expect(listingAccount.rentalStart).to.be.null;
-    //     expect(listingAccount.rentalEnd).to.be.null;
-    //     const vaultBalance = await connection.getTokenAccountBalance(vaultPda);
-    //     expect(vaultBalance.value.amount).to.equal("1");
-    //     const sellerAtaAccount =
-    //       await provider.connection.getTokenAccountBalance(daoAta);
-    //     expect(sellerAtaAccount.value.amount).to.equal("0");
-    //   } catch (error: any) {
-    //     console.error(`something went wrong: ${error}`);
-    //     if (error.logs && Array.isArray(error.logs)) {
-    //       console.log("Transaction Logs:");
-    //       error.logs.forEach((log: string) => console.log(log));
-    //     } else {
-    //       console.log("No logs available in the error .");
-    //     }
-    //   }
-    // });
+    it("creates an NFT listing", async () => {
+      const nftMetadata = findMetadataPda(umi, { mint: nftMint.publicKey })[0];
+      const nftEdition = findMasterEditionPda(umi, {
+        mint: nftMint.publicKey,
+      })[0];
+      const price = new anchor.BN(1);
+      const rentalDuration = new anchor.BN(86400);
+      try {
+        const sig = await program.methods
+          .list(price, rentalDuration)
+          .accountsPartial({
+            seller: daoAuthority.publicKey,
+            marketplace: marketplacePda,
+            whitelistedDao: whitelistedDaoPda,
+            listing: listingPda,
+            mintAddress: nftMint.publicKey,
+            sellerAta: daoAta,
+            vault: vaultPda,
+            collectionMint: collectionMint.publicKey,
+            metadata: nftMetadata,
+            masterEdition: nftEdition,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .signers([daoAuthority])
+          .rpc();
+        const listingAccount = await program.account.listing.fetch(listingPda);
+        expect(listingAccount.seller.toString()).to.equal(
+          daoAuthority.toString()
+        );
+        expect(listingAccount.price.toString()).to.equal(price.toString());
+        expect(listingAccount.rentalDuration.toString()).to.equal(
+          rentalDuration.toString()
+        );
+        expect(listingAccount.currentRenter).to.be.null;
+        expect(listingAccount.rentalStart).to.be.null;
+        expect(listingAccount.rentalEnd).to.be.null;
+        const vaultBalance = await connection.getTokenAccountBalance(vaultPda);
+        expect(vaultBalance.value.amount).to.equal("1");
+        const sellerAtaAccount =
+          await provider.connection.getTokenAccountBalance(daoAta);
+        expect(sellerAtaAccount.value.amount).to.equal("0");
+      } catch (error: any) {
+        console.error(`something went wrong: ${error}`);
+        if (error.logs && Array.isArray(error.logs)) {
+          console.log("Transaction Logs:");
+          error.logs.forEach((log: string) => console.log(log));
+        } else {
+          console.log("No logs available in the error .");
+        }
+      }
+    });
   });
 });

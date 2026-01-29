@@ -11,6 +11,8 @@ pub use state::*;
 
 declare_id!("HY4vmyrm8GooLHLdfo5T8fPuNM7yNDbWNW2emToBCW3F");
 
+// devnet address: EBURvUjEaGzg98Fxvv393KkuGpiz5gCFrgjfQkZHM7UQ
+
 #[program]
 pub mod renft {
     use super::*;
@@ -26,5 +28,9 @@ pub mod renft {
 
     pub fn list(ctx: Context<List>, price: u64, rental_duration: i64) -> Result<()> {
         instructions::list::handler(ctx, price, rental_duration)
+    }
+
+    pub fn delist(ctx: Context<Delist>) -> Result<()> {
+        instructions::delist::handler(ctx)
     }
 }

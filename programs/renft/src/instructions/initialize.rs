@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::TokenInterface;
+use anchor_spl::{token::Token, token_interface::Mint};
 
 use crate::state::Marketplace;
 
@@ -10,7 +10,7 @@ pub struct Initialize<'info> {
     pub admin: Signer<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = admin,
         seeds = [b"marketplace", name.as_bytes()],
         bump,
@@ -23,8 +23,18 @@ pub struct Initialize<'info> {
         bump,
     )]
     pub treasury: SystemAccount<'info>,
+
+    #[account(
+        init,
+        payer = admin,
+        seeds = [b"reward", marketplace.key().as_ref()],
+        bump,
+        mint::decimals = 6,
+        mint::authority = admin,
+    )]
+    pub reward_mint: InterfaceAccount<'info, Mint>,
     pub system_program: Program<'info, System>,
-    pub token_program: Interface<'info, TokenInterface>,
+    pub token_program: Program<'info, Token>,
 }
 
 impl<'info> Initialize<'info> {
@@ -34,6 +44,7 @@ impl<'info> Initialize<'info> {
             fee,
             bump: bumps.marketplace,
             treasury_bump: bumps.treasury,
+            rewards_bump: bumps.reward_mint,
             name,
         });
 

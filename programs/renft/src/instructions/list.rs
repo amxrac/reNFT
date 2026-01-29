@@ -19,9 +19,9 @@ pub struct List<'info> {
     pub marketplace: Account<'info, Marketplace>,
 
     #[account(
-    seeds = [b"whitelist", marketplace.key().as_ref(), collection_mint.key().as_ref()],
-    bump = whitelisted_dao.bump,
-    constraint = whitelisted_dao.dao_authority == seller.key() @ ReNFTError::UnauthorizedSeller,
+        seeds = [b"whitelist", marketplace.key().as_ref(), collection_mint.key().as_ref()],
+        bump = whitelisted_dao.bump,
+        constraint = whitelisted_dao.dao_authority == seller.key() @ ReNFTError::UnauthorizedSeller,
     )]
     pub whitelisted_dao: Account<'info, WhitelistedDao>,
 
@@ -30,7 +30,7 @@ pub struct List<'info> {
         payer = seller,
         seeds = [marketplace.key().as_ref(), mint_address.key().as_ref()],
         bump,
-        space = Listing::DISCRIMINATOR  .len() + Listing::INIT_SPACE
+        space = Listing::DISCRIMINATOR.len() + Listing::INIT_SPACE
     )]
     pub listing: Account<'info, Listing>,
 
@@ -62,7 +62,7 @@ pub struct List<'info> {
         seeds::program = metadata_program.key(),
         bump,
         constraint = metadata.collection.as_ref().unwrap().key.as_ref() == collection_mint.key().as_ref(),
-        constraint = metadata.collection.as_ref().unwrap().verified,
+        constraint = metadata.collection.as_ref().unwrap().verified == true,
     )]
     pub metadata: Account<'info, MetadataAccount>,
 
@@ -120,7 +120,7 @@ impl<'info> List<'info> {
 
         let cpi_cxt = CpiContext::new(cpi_program, cpi_accounts);
 
-        transfer_checked(cpi_cxt, self.seller_ata.amount, self.mint_address.decimals)?;
+        transfer_checked(cpi_cxt, 1, self.mint_address.decimals)?;
 
         Ok(())
     }
